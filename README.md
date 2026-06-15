@@ -21,11 +21,11 @@ pip install requirements.txt
 streamlit run dashboard/dashboard.py
 ```
 
-5. Run the notebook:
+4. Run the notebook:
 ```powershell
 ```
 
-6. Deactivate the virtual environment:
+5. Deactivate the virtual environment:
 
 ```powershell
 deactivate
