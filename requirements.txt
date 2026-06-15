@@ -1,0 +1,6 @@
+streamlit
+altair
+pandas
+kagglehub
+requests
+pyarrow
