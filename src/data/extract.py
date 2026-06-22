@@ -1,3 +1,5 @@
+import re
+import zipfile
 import shutil
 import time
 from io import StringIO
@@ -13,8 +15,8 @@ DATA_PROCESSED = Path(__file__).parents[2] / "data" / "processed"
 DATA_RAW.mkdir(parents=True, exist_ok=True)
 DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
 
-
 # --- INMET (meteorological data) ---
+INMET_ZIP_URL = "https://portal.inmet.gov.br/uploads/dadoshistoricos/{year}.zip"
 
 '''def fetch_inmet(years: range = range(2020, 2025)) -> pd.DataFrame:
     dest = DATA_RAW / "inmet" / "inmet_rs_2020_2024.csv"
@@ -49,64 +51,96 @@ DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
     print(f"INMET saved to: {dest}  ({len(result):,} rows, {result['ESTACAO'].nunique()} stations)")
     return result'''
 
-def fetch_inmet_from_inmet(years: range = range(2020, 2024)) -> pd.DataFrame:
+def _download_inmet_zip(year: int, raw_dir: Path) -> Path:
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = raw_dir / f"{year}.zip"
+    if zip_path.exists():
+        return zip_path
+    url = INMET_ZIP_URL.format(year=year)
+    print(f"  Baixando {url}")
+    # alguns ambientes têm problema de SSL com esse host; se necessário,
+    # tente verify=False como último recurso (não recomendado em produção)
+    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=180)
+    resp.raise_for_status()
+    zip_path.write_bytes(resp.content)
+    return zip_path
+
+
+def _extract_inmet_zip(zip_path: Path, year: int, raw_dir: Path) -> Path:
+    extract_dir = raw_dir / str(year)
+    if not extract_dir.exists():
+        with zipfile.ZipFile(zip_path) as zf:
+            zf.extractall(extract_dir)
+    return extract_dir
+
+
+def _read_inmet_station_csv(path: Path) -> pd.DataFrame | None:
+    """Lê um CSV de estação do INMET: 8 linhas de metadados + tabela."""
+    with open(path, encoding="latin-1") as f:
+        header_lines = [next(f) for _ in range(8)]
+
+    meta = {}
+    for line in header_lines:
+        if ":;" in line:
+            key, val = line.split(":;", 1)
+            key = key.strip().upper()
+            key = key.replace("ESTAÇÃO", "ESTACAO")  # normaliza acento
+            meta[key] = val.strip().strip(";").strip()
+
+    if meta.get("UF") != "RS":
+        return None
+
+    df = pd.read_csv(
+        path,
+        sep=";",
+        decimal=",",
+        encoding="latin-1",
+        skiprows=8,
+        na_values=["-9999", "-9999,0", ""],
+        low_memory=False,
+    )
+    df = df.loc[:, ~df.columns.str.match(r"^Unnamed")]  # remove ; sobrando no final da linha
+
+    df["UF"] = meta.get("UF")
+    df["ESTACAO"] = meta.get("ESTACAO")
+    df["CODIGO_WMO"] = meta.get("CODIGO (WMO)")
+    df["LATITUDE"] = meta.get("LATITUDE")
+    df["LONGITUDE"] = meta.get("LONGITUDE")
+    df["ALTITUDE"] = meta.get("ALTITUDE")
+    return df
+
+
+def fetch_inmet(years: range = range(2020, 2025)) -> pd.DataFrame:
     dest = DATA_RAW / "inmet" / "inmet_rs_2020_2024.csv"
     raw_dir = DATA_RAW / "inmet"
-    raw_dir.mkdir(parents=True, exist_ok=True)
 
     if dest.exists():
         print(f"INMET already at: {dest}")
         return pd.read_csv(dest, low_memory=False)
 
     frames = []
-    
     for year in years:
-        # URL do INMET para dados históricos
-        # Formato: https://portal.inmet.gov.br/uploads/dadoshistoricos/2024.zip
-        url = f"https://portal.inmet.gov.br/uploads/dadoshistoricos/{year}.zip"
-        file_path = raw_dir / f"{year}.zip"
-        
-        # Download do arquivo zip
-        try:
-            print(f"Baixando dados de {year}...")
-            response = requests.get(url, stream=True)
-            if response.status_code == 200:
-                with open(file_path, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
-                print(f"  Download concluído: {year}")
-            else:
-                print(f"  Dados de {year} não disponíveis (status {response.status_code})")
+        zip_path = _download_inmet_zip(year, raw_dir)
+        extract_dir = _extract_inmet_zip(zip_path, year, raw_dir)
+
+        # busca recursiva: alguns anos vêm com subpastas por estação/região
+        csv_files = sorted(set(extract_dir.rglob("*.csv")) | set(extract_dir.rglob("*.CSV")))
+        csv_files = [p for p in csv_files if "_RS_" in p.name.upper()]
+
+        year_rows = 0
+        for path in csv_files:
+            df = _read_inmet_station_csv(path)
+            if df is None:
                 continue
-        except Exception as e:
-            print(f"  Erro ao baixar {year}: {e}")
-            continue
-        
-        # Extrair e ler o CSV
-        import zipfile
-        try:
-            with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                csv_files = [f for f in zip_ref.namelist() if f.endswith('.csv')]
-                for csv_file in csv_files:
-                    with zip_ref.open(csv_file) as f:
-                        df = pd.read_csv(f, low_memory=False)
-                        df = df[df["UF"] == "RS"].copy()
-                        df["year"] = year
-                        frames.append(df)
-                        print(f"  Carregado INMET {year}: {len(df):,} rows")
-        except Exception as e:
-            print(f"  Erro ao processar arquivo de {year}: {e}")
-            continue
-        
-        time.sleep(1)  # Pequena pausa para não sobrecarregar o servidor
-    
-    if not frames:
-        print("Nenhum dado encontrado para os anos especificados.")
-        return pd.DataFrame()
+            df["year"] = year
+            frames.append(df)
+            year_rows += len(df)
+        print(f"  Loaded INMET {year}: {year_rows:,} rows ({len(csv_files)} estações RS)")
 
     result = pd.concat(frames, ignore_index=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     result.to_csv(dest, index=False)
-    print(f"INMET salvo em: {dest}  ({len(result):,} rows, {result['ESTACAO'].nunique()} estações)")
+    print(f"INMET saved to: {dest}  ({len(result):,} rows, {result['ESTACAO'].nunique()} stations)")
     return result
 
 # --- IBGE (city codes) ---
