@@ -1,4 +1,4 @@
-# Dengue Prediction in RS
+# Predicting Dengue Outbreaks from Urban Environmental Conditions in RS/BRA
 
 ## How to Run
 
