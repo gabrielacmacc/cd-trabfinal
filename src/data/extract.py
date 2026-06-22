@@ -16,7 +16,7 @@ DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
 
 # --- INMET (meteorological data) ---
 
-def fetch_inmet(years: range = range(2020, 2025)) -> pd.DataFrame:
+'''def fetch_inmet(years: range = range(2020, 2025)) -> pd.DataFrame:
     dest = DATA_RAW / "inmet" / "inmet_rs_2020_2024.csv"
     raw_dir = DATA_RAW / "inmet"
 
@@ -47,6 +47,66 @@ def fetch_inmet(years: range = range(2020, 2025)) -> pd.DataFrame:
     result = pd.concat(frames, ignore_index=True)
     result.to_csv(dest, index=False)
     print(f"INMET saved to: {dest}  ({len(result):,} rows, {result['ESTACAO'].nunique()} stations)")
+    return result'''
+
+def fetch_inmet_from_inmet(years: range = range(2020, 2024)) -> pd.DataFrame:
+    dest = DATA_RAW / "inmet" / "inmet_rs_2020_2024.csv"
+    raw_dir = DATA_RAW / "inmet"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+
+    if dest.exists():
+        print(f"INMET already at: {dest}")
+        return pd.read_csv(dest, low_memory=False)
+
+    frames = []
+    
+    for year in years:
+        # URL do INMET para dados históricos
+        # Formato: https://portal.inmet.gov.br/uploads/dadoshistoricos/2024.zip
+        url = f"https://portal.inmet.gov.br/uploads/dadoshistoricos/{year}.zip"
+        file_path = raw_dir / f"{year}.zip"
+        
+        # Download do arquivo zip
+        try:
+            print(f"Baixando dados de {year}...")
+            response = requests.get(url, stream=True)
+            if response.status_code == 200:
+                with open(file_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                print(f"  Download concluído: {year}")
+            else:
+                print(f"  Dados de {year} não disponíveis (status {response.status_code})")
+                continue
+        except Exception as e:
+            print(f"  Erro ao baixar {year}: {e}")
+            continue
+        
+        # Extrair e ler o CSV
+        import zipfile
+        try:
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                csv_files = [f for f in zip_ref.namelist() if f.endswith('.csv')]
+                for csv_file in csv_files:
+                    with zip_ref.open(csv_file) as f:
+                        df = pd.read_csv(f, low_memory=False)
+                        df = df[df["UF"] == "RS"].copy()
+                        df["year"] = year
+                        frames.append(df)
+                        print(f"  Carregado INMET {year}: {len(df):,} rows")
+        except Exception as e:
+            print(f"  Erro ao processar arquivo de {year}: {e}")
+            continue
+        
+        time.sleep(1)  # Pequena pausa para não sobrecarregar o servidor
+    
+    if not frames:
+        print("Nenhum dado encontrado para os anos especificados.")
+        return pd.DataFrame()
+
+    result = pd.concat(frames, ignore_index=True)
+    result.to_csv(dest, index=False)
+    print(f"INMET salvo em: {dest}  ({len(result):,} rows, {result['ESTACAO'].nunique()} estações)")
     return result
 
 # --- IBGE (city codes) ---
