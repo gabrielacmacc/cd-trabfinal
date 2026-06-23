@@ -250,3 +250,20 @@ def fetch_sinisa(years: range = range(2023, 2025)) -> pd.DataFrame:
     result.to_csv(dest, index=False)
     print(f"SINISA saved to: {dest}  ({len(result):,} rows)")
     return result
+
+
+def fetch_cleaned_snis_sinisa() -> pd.DataFrame:
+    dest = DATA_RAW / "residuos" / "cleaned_snis_sinisa_residuos_2020_2024.csv"
+    
+    if dest.exists():
+        print(f"Cleaned SNIS/SINISA already at: {dest}")
+        return pd.read_csv(dest, low_memory=False)
+    
+    # Se o arquivo não existir, tentar carregar do local alternativo
+    # Ou você pode implementar a lógica de construção aqui
+    st.error(f"Arquivo não encontrado: {dest}")
+    st.info("""
+    Certifique-se de que o arquivo `cleaned_snis_sinisa_residuos_2020_2024.csv` 
+    está na pasta `data/raw/residuos/`
+    """)
+    return pd.DataFrame()
