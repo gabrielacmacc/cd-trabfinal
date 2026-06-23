@@ -9,12 +9,12 @@ import os
 alt.data_transformers.disable_max_rows()
 
 st.set_page_config(
-    page_title="Dengue Prediction Dashboard - RS/BRA",
+    page_title="Predicting Dengue Outbreaks from Urban Environmental Conditions",
     page_icon="🦟",
     layout="wide"
 )
 
-st.title("🦟 Dengue Prediction Dashboard")
+st.title("🦟 Predicting Dengue Outbreaks from Urban Environmental Conditions")
 st.caption(f"Rio Grande do Sul, Brasil | {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
 # ============================================================================
@@ -25,8 +25,7 @@ st.caption(f"Rio Grande do Sul, Brasil | {datetime.now().strftime('%d/%m/%Y %H:%
 def load_data():
     """Carrega os dados processados."""
     
-    # caminho dos parquets modificar conforme a maquina ex /home/jcp/Documentos/cd-trabfinal/notebooks/data/processed/
-    data_dir = '.../notebooks/data/processed/'
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'notebooks', 'data','processed')
     
     try:
         inmet = pd.read_parquet(os.path.join(data_dir, 'inmet_weekly.parquet'))

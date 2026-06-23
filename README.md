@@ -1,4 +1,6 @@
-# Predicting Dengue Outbreaks from Urban Environmental Conditions in RS/BRA
+# Predicting Dengue Outbreaks from Urban Environmental Conditions in Rio Grande do Sul, Brazil (2020–2024)
+
+### INF01090 — Data Science | Final Project | 2026/1
 
 ## How to Run
 
@@ -21,11 +23,7 @@ pip install requirements.txt
 streamlit run dashboard/dashboard.py
 ```
 
-4. Run the notebook:
-```powershell
-```
-
-5. Deactivate the virtual environment:
+4. Deactivate the virtual environment:
 
 ```powershell
 deactivate
