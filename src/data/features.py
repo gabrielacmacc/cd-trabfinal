@@ -307,3 +307,102 @@ def feature_engineering_pipeline(
     print(f"✓ Feature Engineering concluído. Shape final: {df.shape}")
     
     return df
+
+
+# ---------------------------------------------------------------------------
+# FEATURE ENGINEERING PIPELINE
+# ---------------------------------------------------------------------------
+
+def feature_engineering_pipeline(
+    df: pd.DataFrame,
+    create_lags: bool = True,
+    create_rolling: bool = True,
+    create_extremes: bool = True,
+    create_temporal: bool = True
+) -> pd.DataFrame:
+    """
+    Pipeline completo de Feature Engineering.
+    """
+    print("1. Criando limiares climáticos...")
+    df = create_climate_thresholds(df)
+    
+    print("2. Criando índices de dengue...")
+    df = create_dengue_indices(df)
+    
+    if create_lags:
+        print("3. Criando features defasadas (lags)...")
+        lag_cols = ['temp_media', 'temp_min', 'temp_max', 'umidade_media', 'precipitacao_total', 'index_p']
+        lag_cols = [c for c in lag_cols if c in df.columns]
+        df = create_lag_features(df, lag_cols, lags=[1, 2, 3, 4, 6, 8])
+    
+    if create_rolling:
+        print("4. Criando médias móveis e acumulados...")
+        rolling_cols = ['temp_media', 'temp_min', 'umidade_media', 'index_p']
+        rolling_cols = [c for c in rolling_cols if c in df.columns]
+        df = create_rolling_features(df, rolling_cols, windows=[2, 4, 8])
+    
+    if create_extremes:
+        print("5. Identificando eventos climáticos extremos...")
+        df = create_extreme_events(df)
+    
+    if create_temporal:
+        print("6. Criando features temporais e sazonais...")
+        df = create_temporal_features(df)
+    
+    print(f"✓ Feature Engineering concluído. Shape final: {df.shape}")
+    
+    return df
+
+
+# ---------------------------------------------------------------------------
+# VALIDATION
+# ---------------------------------------------------------------------------
+
+def validate_features(df: pd.DataFrame) -> dict:
+    """
+    Valida as features criadas.
+    """
+    validation = {
+        'shape': df.shape,
+        'n_features': len(df.columns),
+        'n_missing': df.isnull().sum().sum(),
+        'features': {
+            'thresholds': [c for c in df.columns if c in ['temp_min_acima_18', 'semanas_consecutivas_18', 'umidade_ideal']],
+            'indices': [c for c in df.columns if c in ['index_p', 'transmissibilidade', 'risco_climatico']],
+            'lags': [c for c in df.columns if '_lag_' in c],
+            'rolling': [c for c in df.columns if '_ma_' in c or '_acum_' in c],
+            'extremos': [c for c in df.columns if c in ['onda_calor', 'chuva_intensa', 'seca_prolongada']],
+            'temporais': [c for c in df.columns if c in ['semana_sin', 'semana_cos', 'periodo_risco']]
+        }
+    }
+    return validation
+
+
+def print_feature_summary(validation: dict):
+    """Imprime sumário das features criadas."""
+    print("\n" + "="*50)
+    print("FEATURE ENGINEERING SUMMARY")
+    print("="*50)
+    print(f"Shape:              {validation['shape']}")
+    print(f"Total Features:     {validation['n_features']}")
+    print(f"Missing Values:     {validation['n_missing']}")
+    print("\n--- FEATURES BY CATEGORY ---")
+    
+    category_names = {
+        'thresholds': 'Limiares Climáticos',
+        'indices': 'Índices de Dengue',
+        'lags': 'Defasagens (Lags)',
+        'rolling': 'Médias Móveis',
+        'extremos': 'Eventos Extremos',
+        'temporais': 'Temporais/Sazonais'
+    }
+    
+    for key, name in category_names.items():
+        features = validation['features'].get(key, [])
+        if features:
+            print(f"\n{name}: {len(features)} features")
+            if len(features) <= 5:
+                print(f"  {features}")
+            else:
+                print(f"  {features[:3]} ... +{len(features)-3} more")
+    print("="*50)
