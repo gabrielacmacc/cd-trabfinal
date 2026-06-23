@@ -511,47 +511,72 @@ def print_validation(validation: dict):
     
     print("="*60)    
 
+
 def unify_datasets(
     climate_df: pd.DataFrame,
     dengue_df: pd.DataFrame,
     sanitation_df: pd.DataFrame,
-    merge_col: str = 'semana_id'
+    station_city_map: pd.DataFrame = None
 ) -> pd.DataFrame:
     """
-    Une datasets climáticos, de dengue e de saneamento.
+    Une datasets e mantém target junto para análise.
     
-    Args:
-        climate_df: DataFrame com dados climáticos (INMET)
-        dengue_df: DataFrame com dados de dengue
-        sanitation_df: DataFrame com dados de saneamento (SNIS/SINISA)
-        merge_col: Coluna para merge (semana_id)
+    O dataset retornado contém target (outbreak) junto com features,
+    mas APENAS para análise. Na modelagem, separe X e y.
     
     Returns:
-        DataFrame unificado
+        DataFrame unificado com target incluído
     """
-    # 1. Merge clima + dengue
-    unified = climate_df.merge(
-        dengue_df[['semana_id', 'casos', 'incidencia_100k', 'outbreak']],
+    
+    print("\n=== UNIFICANDO DATASETS (Com target incluso) ===")
+    
+    # 1. Selecionar features climáticas (X)
+    climate_features = climate_df.copy()
+    print(f"   Features climáticas: {len(climate_features.columns)}")
+    
+    # 2. Selecionar target (y)
+    dengue_target = dengue_df[['semana_id', 'outbreak']].copy()
+    # Manter casos para referência (NUNCA usar como feature!)
+    if 'casos' in dengue_df.columns:
+        dengue_target['casos'] = dengue_df['casos']
+    
+    print(f"   Target: {dengue_target['outbreak'].sum()} surtos ({dengue_target['outbreak'].mean()*100:.1f}%)")
+    
+    # 3. Merge (target fica junto!)
+    unified = climate_features.merge(
+        dengue_target,
         on='semana_id',
         how='left'
     )
     
-    # 2. Adicionar dados de saneamento
-    # O merge precisa ser por município e ano
-    if 'municipio' in sanitation_df.columns and 'ano' in climate_df.columns:
-        # Criar chave de merge
-        # Nota: Isso requer correspondência entre estação e município
+    # 4. Adicionar saneamento
+    if sanitation_df is not None and station_city_map is not None:
+        # Mapear estações para municípios
+        unified = unified.merge(station_city_map, on='estacao', how='left')
         
-        # Por enquanto, vamos apenas selecionar as features de saneamento
-        # para um merge futuro
+        # Merge com saneamento
+        sanitation_features = sanitation_df[[
+            'ibge_code', 'year', 'cobertura_total', 'coleta_seletiva_total',
+            'densidade_populacional', 'proporcao_urbana', 'qualidade_servico'
+        ]].copy()
         
-        sanitation_features = sanitation_df[['ibge_code', 'year', 
-                                             'populacao_total', 'populacao_urbana',
-                                             'cobertura_total', 'coleta_seletiva_total',
-                                             'qualidade_servico', 'densidade_populacional']].copy()
+        unified = unified.merge(
+            sanitation_features,
+            left_on=['ibge_code', 'ano'],
+            right_on=['ibge_code', 'year'],
+            how='left'
+        )
         
-        # Aqui você precisaria de um mapeamento estação -> município
-        # Para simplificar, vamos apenas retornar o climate + dengue por enquanto
-        pass
+        # Remover colunas duplicadas
+        if 'year' in unified.columns:
+            unified = unified.drop(columns=['year'])
+    
+    # 5. Remover linhas sem target
+    before = len(unified)
+    unified = unified.dropna(subset=['outbreak'])
+    print(f"   Removidas {before - len(unified)} linhas sem target")
+    
+    print(f"   Dataset final: {unified.shape}")
+    print(f"   Features: {len(unified.columns)} colunas (incluindo target)")
     
     return unified
