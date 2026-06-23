@@ -406,3 +406,315 @@ def print_feature_summary(validation: dict):
             else:
                 print(f"  {features[:3]} ... +{len(features)-3} more")
     print("="*50)
+
+# ============================================================================
+# SANITATION FEATURES (SNIS + SINISA)
+# ============================================================================
+
+def create_sanitation_derived_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cria features derivadas a partir dos dados de saneamento (SNIS/SINISA).
+    
+    Features criadas:
+    - densidade_populacional: População / Área
+    - proporcao_urbana: População urbana / População total
+    - proporcao_rural: 1 - proporcao_urbana
+    - moradores_por_domicilio: População / Domicílios totais
+    - coleta_seletiva_rural: Coleta seletiva total - Coleta seletiva urbana
+    - cobertura_rural_estimada: Cobertura total - Cobertura urbana
+    - lacuna_coleta_seletiva: Cobertura total - Coleta seletiva total
+    - qualidade_servico: (Coleta seletiva / Cobertura total) * 100
+    - eficiencia_coleta: Razão entre coleta direta e cobertura total
+    - cobertura_media: Média das coberturas
+    - infraestrutura_score: Score combinado de infraestrutura
+    """
+    df = df.copy()
+    
+    # 1. Densidade populacional
+    if 'populacao_total' in df.columns and 'area_km2' in df.columns:
+        df['densidade_populacional'] = df['populacao_total'] / df['area_km2']
+        df['densidade_populacional'] = df['densidade_populacional'].replace([np.inf, -np.inf], np.nan)
+    
+    # 2. Proporção urbana/rural
+    if 'populacao_urbana' in df.columns and 'populacao_total' in df.columns:
+        df['proporcao_urbana'] = df['populacao_urbana'] / df['populacao_total']
+        df['proporcao_rural'] = 1 - df['proporcao_urbana']
+    
+    # 3. Moradores por domicílio
+    if 'populacao_total' in df.columns and 'domicilios_totais' in df.columns:
+        df['moradores_por_domicilio'] = df['populacao_total'] / df['domicilios_totais']
+        df['moradores_por_domicilio'] = df['moradores_por_domicilio'].replace([np.inf, -np.inf], np.nan)
+    
+    # 4. Coleta seletiva rural (estimada)
+    if 'coleta_seletiva_total' in df.columns and 'coleta_seletiva_urbana' in df.columns:
+        df['coleta_seletiva_rural'] = df['coleta_seletiva_total'] - df['coleta_seletiva_urbana']
+        df['coleta_seletiva_rural'] = df['coleta_seletiva_rural'].clip(lower=0)
+    
+    # 5. Cobertura rural estimada
+    if 'cobertura_total' in df.columns and 'cobertura_urbana' in df.columns:
+        df['cobertura_rural_estimada'] = df['cobertura_total'] - df['cobertura_urbana']
+        df['cobertura_rural_estimada'] = df['cobertura_rural_estimada'].clip(lower=0)
+    
+    # 6. Lacuna de coleta seletiva
+    if 'cobertura_total' in df.columns and 'coleta_seletiva_total' in df.columns:
+        df['lacuna_coleta_seletiva'] = df['cobertura_total'] - df['coleta_seletiva_total']
+        df['lacuna_coleta_seletiva'] = df['lacuna_coleta_seletiva'].clip(lower=0)
+    
+    # 7. Qualidade do serviço (proporção de coleta seletiva)
+    if 'coleta_seletiva_total' in df.columns and 'cobertura_total' in df.columns:
+        df['qualidade_servico'] = (df['coleta_seletiva_total'] / (df['cobertura_total'] + 1)) * 100
+        df['qualidade_servico'] = df['qualidade_servico'].clip(upper=100)
+    
+    # 8. Eficiência da coleta direta
+    if 'cobertura_urbana_direta' in df.columns and 'cobertura_urbana' in df.columns:
+        df['eficiencia_coleta_direta'] = df['cobertura_urbana_direta'] / (df['cobertura_urbana'] + 1) * 100
+        df['eficiencia_coleta_direta'] = df['eficiencia_coleta_direta'].clip(upper=100)
+    
+    # 9. Cobertura média (indicador geral)
+    cobertura_cols = ['cobertura_total', 'cobertura_urbana', 'cobertura_rural']
+    cobertura_cols = [c for c in cobertura_cols if c in df.columns]
+    if cobertura_cols:
+        df['cobertura_media'] = df[cobertura_cols].mean(axis=1)
+    
+    # 10. Score de infraestrutura (combinação de indicadores)
+    if 'cobertura_total' in df.columns and 'coleta_seletiva_total' in df.columns:
+        # Normalizar cada componente (0-1)
+        cobertura_norm = df['cobertura_total'] / 100
+        coleta_seletiva_norm = df['coleta_seletiva_total'] / 100
+        
+        # Score ponderado (cobertura tem peso maior)
+        df['infraestrutura_score'] = (cobertura_norm * 0.6) + (coleta_seletiva_norm * 0.4)
+        df['infraestrutura_score'] = df['infraestrutura_score'] * 100
+    
+    return df
+
+
+def create_sanitation_binary_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cria features binárias a partir de limiares de saneamento.
+    """
+    df = df.copy()
+    
+    # 1. Alta cobertura (> 80%)
+    if 'cobertura_total' in df.columns:
+        df['cobertura_alta'] = (df['cobertura_total'] > 80).astype(int)
+        df['cobertura_muito_alta'] = (df['cobertura_total'] > 95).astype(int)
+        df['cobertura_baixa'] = (df['cobertura_total'] < 50).astype(int)
+    
+    # 2. Coleta seletiva presente (> 0%)
+    if 'coleta_seletiva_total' in df.columns:
+        df['tem_coleta_seletiva'] = (df['coleta_seletiva_total'] > 0).astype(int)
+        df['coleta_seletiva_alta'] = (df['coleta_seletiva_total'] > 50).astype(int)
+    
+    # 3. Densidade alta (> 100 hab/km²)
+    if 'densidade_populacional' in df.columns:
+        df['densidade_alta'] = (df['densidade_populacional'] > 100).astype(int)
+    
+    # 4. Área urbana predominante (> 70% urbana)
+    if 'proporcao_urbana' in df.columns:
+        df['predominantemente_urbano'] = (df['proporcao_urbana'] > 0.7).astype(int)
+    
+    # 5. Qualidade do serviço boa (> 20% de coleta seletiva)
+    if 'qualidade_servico' in df.columns:
+        df['qualidade_servico_boa'] = (df['qualidade_servico'] > 20).astype(int)
+    
+    return df
+
+
+def create_sanitation_temporal_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cria features temporais para dados de saneamento.
+    """
+    df = df.copy()
+    
+    # 1. Tendência de cobertura (variação ano a ano)
+    if 'cobertura_total' in df.columns and 'year' in df.columns and 'ibge_code' in df.columns:
+        df = df.sort_values(['ibge_code', 'year'])
+        
+        # Mudança percentual na cobertura
+        df['cobertura_pct_change'] = df.groupby('ibge_code')['cobertura_total'].pct_change()
+        df['cobertura_pct_change'] = df['cobertura_pct_change'].replace([np.inf, -np.inf], np.nan)
+        
+        # Diferença absoluta
+        df['cobertura_diff'] = df.groupby('ibge_code')['cobertura_total'].diff()
+        
+        # Tendência de melhora (cobertura aumentou)
+        df['cobertura_melhorou'] = (df['cobertura_diff'] > 0).astype(int)
+    
+    # 2. Tendência de coleta seletiva
+    if 'coleta_seletiva_total' in df.columns and 'year' in df.columns and 'ibge_code' in df.columns:
+        df['coleta_seletiva_pct_change'] = df.groupby('ibge_code')['coleta_seletiva_total'].pct_change()
+        df['coleta_seletiva_pct_change'] = df['coleta_seletiva_pct_change'].replace([np.inf, -np.inf], np.nan)
+        
+        df['coleta_seletiva_diff'] = df.groupby('ibge_code')['coleta_seletiva_total'].diff()
+        df['coleta_seletiva_melhorou'] = (df['coleta_seletiva_diff'] > 0).astype(int)
+    
+    # 3. Anos desde a última melhoria significativa
+    if 'cobertura_diff' in df.columns and 'ibge_code' in df.columns:
+        def years_since_improvement(series):
+            result = []
+            last_improvement = -1
+            for i, val in enumerate(series):
+                if val > 0:  # melhorou
+                    last_improvement = i
+                    result.append(0)
+                else:
+                    if last_improvement == -1:
+                        result.append(999)
+                    else:
+                        result.append(i - last_improvement)
+            return result
+        
+        df['anos_sem_melhoria'] = df.groupby('ibge_code')['cobertura_diff'].transform(
+            lambda x: years_since_improvement(x.tolist())
+        )
+    
+    return df
+
+
+def create_sanitation_combined_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Cria features combinadas que integram múltiplos indicadores de saneamento.
+    """
+    df = df.copy()
+    
+    # 1. Índice de Desenvolvimento do Saneamento (IDS)
+    # Combina cobertura, coleta seletiva e qualidade
+    if all(c in df.columns for c in ['cobertura_total', 'coleta_seletiva_total', 'qualidade_servico']):
+        # Normalizar cada componente (0-1)
+        cobertura_norm = df['cobertura_total'] / 100
+        seletiva_norm = df['coleta_seletiva_total'] / 100
+        qualidade_norm = df['qualidade_servico'] / 100
+        
+        # IDS com pesos
+        df['ids'] = (cobertura_norm * 0.4 + seletiva_norm * 0.35 + qualidade_norm * 0.25) * 100
+    
+    # 2. Índice de Cobertura Efetiva
+    # Cobertura ajustada pela proporção urbana
+    if 'cobertura_total' in df.columns and 'proporcao_urbana' in df.columns:
+        df['cobertura_efetiva'] = df['cobertura_total'] * (0.7 + 0.3 * df['proporcao_urbana'])
+    
+    # 3. Score de Risco de Saneamento (quanto maior, pior o saneamento)
+    # Baseado em lacunas de cobertura e baixa coleta seletiva
+    risk_components = []
+    
+    if 'lacuna_coleta_seletiva' in df.columns:
+        risk_components.append(df['lacuna_coleta_seletiva'] / 100)
+    
+    if 'cobertura_total' in df.columns:
+        risk_components.append(1 - df['cobertura_total'] / 100)
+    
+    if risk_components:
+        df['risco_saneamento'] = np.mean(risk_components, axis=0) * 100
+    
+    return df
+
+
+# ============================================================================
+# SANITATION FEATURE ENGINEERING PIPELINE
+# ============================================================================
+
+def sanitation_feature_engineering_pipeline(
+    df: pd.DataFrame,
+    create_derived: bool = True,
+    create_binary: bool = True,
+    create_temporal: bool = True,
+    create_combined: bool = True
+) -> pd.DataFrame:
+    """
+    Pipeline completo de Feature Engineering para dados de saneamento.
+    """
+    print("1. Criando features derivadas de saneamento...")
+    if create_derived:
+        df = create_sanitation_derived_features(df)
+    
+    print("2. Criando features binárias de saneamento...")
+    if create_binary:
+        df = create_sanitation_binary_features(df)
+    
+    print("3. Criando features temporais de saneamento...")
+    if create_temporal:
+        df = create_sanitation_temporal_features(df)
+    
+    print("4. Criando features combinadas de saneamento...")
+    if create_combined:
+        df = create_sanitation_combined_features(df)
+    
+    print(f"✓ Feature Engineering de saneamento concluído. Shape final: {df.shape}")
+    
+    return df
+
+
+# ============================================================================
+# VALIDATION
+# ============================================================================
+
+def validate_sanitation_features(df: pd.DataFrame) -> dict:
+    """
+    Valida as features de saneamento criadas.
+    """
+    # Features esperadas
+    derived_features = [
+        'densidade_populacional', 'proporcao_urbana', 'proporcao_rural',
+        'moradores_por_domicilio', 'coleta_seletiva_rural', 'cobertura_rural_estimada',
+        'lacuna_coleta_seletiva', 'qualidade_servico', 'eficiencia_coleta_direta',
+        'cobertura_media', 'infraestrutura_score'
+    ]
+    
+    binary_features = [
+        'cobertura_alta', 'cobertura_muito_alta', 'cobertura_baixa',
+        'tem_coleta_seletiva', 'coleta_seletiva_alta',
+        'densidade_alta', 'predominantemente_urbano', 'qualidade_servico_boa'
+    ]
+    
+    temporal_features = [
+        'cobertura_pct_change', 'cobertura_diff', 'cobertura_melhorou',
+        'coleta_seletiva_pct_change', 'coleta_seletiva_diff', 'coleta_seletiva_melhorou',
+        'anos_sem_melhoria'
+    ]
+    
+    combined_features = [
+        'ids', 'cobertura_efetiva', 'risco_saneamento'
+    ]
+    
+    validation = {
+        'shape': df.shape,
+        'n_features': len(df.columns),
+        'n_missing': df.isnull().sum().sum(),
+        'features': {
+            'derivadas': [c for c in derived_features if c in df.columns],
+            'binarias': [c for c in binary_features if c in df.columns],
+            'temporais': [c for c in temporal_features if c in df.columns],
+            'combinadas': [c for c in combined_features if c in df.columns]
+        }
+    }
+    
+    return validation
+
+
+def print_sanitation_feature_summary(validation: dict):
+    """Imprime sumário das features de saneamento criadas."""
+    print("\n" + "="*50)
+    print("SANITATION FEATURE ENGINEERING SUMMARY")
+    print("="*50)
+    print(f"Shape:              {validation['shape']}")
+    print(f"Total Features:     {validation['n_features']}")
+    print(f"Missing Values:     {validation['n_missing']}")
+    print("\n--- FEATURES BY CATEGORY ---")
+    
+    category_names = {
+        'derivadas': 'Features Derivadas',
+        'binarias': 'Features Binárias',
+        'temporais': 'Features Temporais',
+        'combinadas': 'Features Combinadas'
+    }
+    
+    for key, name in category_names.items():
+        features = validation['features'].get(key, [])
+        if features:
+            print(f"\n{name}: {len(features)} features")
+            if len(features) <= 5:
+                print(f"  {features}")
+            else:
+                print(f"  {features[:3]} ... +{len(features)-3} more")
+    print("="*50)
