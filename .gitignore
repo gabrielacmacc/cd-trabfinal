@@ -2,4 +2,3 @@ __pycache__/
 .venv/
 
 data/raw/inmet
-notebooks/data/processed
