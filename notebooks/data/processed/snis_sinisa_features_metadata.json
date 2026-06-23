@@ -1,7 +1,7 @@
 {
   "shape": [
     2485,
-    10
+    11
   ],
   "columns": [
     "municipio",
@@ -13,8 +13,9 @@
     "populacao urbana",
     "populacao rural",
     "quantidade de domicilios totais existente no municipio",
-    "cobertura da populacao total com coleta de residuos solidos domiciliares percentual"
+    "ids",
+    "cobertura da populacao total com coleta seletiva de residuos solidos domiciliares percentual"
   ],
-  "transformation_date": "2026-06-23T11:27:12.887491",
-  "n_features": 10
+  "transformation_date": "2026-06-23T11:49:33.070127",
+  "n_features": 11
 }
