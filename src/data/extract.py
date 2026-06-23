@@ -18,39 +18,6 @@ DATA_PROCESSED.mkdir(parents=True, exist_ok=True)
 # --- INMET (meteorological data) ---
 INMET_ZIP_URL = "https://portal.inmet.gov.br/uploads/dadoshistoricos/{year}.zip"
 
-'''def fetch_inmet(years: range = range(2020, 2025)) -> pd.DataFrame:
-    dest = DATA_RAW / "inmet" / "inmet_rs_2020_2024.csv"
-    raw_dir = DATA_RAW / "inmet"
-
-    if dest.exists():
-        print(f"INMET already at: {dest}")
-        return pd.read_csv(dest, low_memory=False)
-
-    csv_files = sorted(raw_dir.glob("*.csv")) if raw_dir.exists() else []
-    if not csv_files:
-        src = Path(kagglehub.dataset_download("gnomows/dados-metereologicos-2018-2024-inmet"))
-        shutil.copytree(src, raw_dir)
-        csv_files = sorted(raw_dir.glob("*.csv"))
-
-    frames = []
-    for path in csv_files:
-        try:
-            year = int(path.stem)
-        except ValueError:
-            continue
-        if year not in years:
-            continue
-        df = pd.read_csv(path, low_memory=False)
-        df = df[df["UF"] == "RS"].copy()
-        df["year"] = year
-        frames.append(df)
-        print(f"  Loaded INMET {year}: {len(df):,} rows")
-
-    result = pd.concat(frames, ignore_index=True)
-    result.to_csv(dest, index=False)
-    print(f"INMET saved to: {dest}  ({len(result):,} rows, {result['ESTACAO'].nunique()} stations)")
-    return result'''
-
 def _download_inmet_zip(year: int, raw_dir: Path) -> Path:
     raw_dir.mkdir(parents=True, exist_ok=True)
     zip_path = raw_dir / f"{year}.zip"
