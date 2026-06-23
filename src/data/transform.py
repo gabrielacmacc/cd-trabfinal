@@ -250,46 +250,65 @@ def prepare_dengue_target(df: pd.DataFrame) -> pd.DataFrame:
 
 # ----- 3.4 Prepare Sanitation Data (SNIS + SINISA Consolidado) -------------
 
-def prepare_cleaned_snis_sinisa(df: pd.DataFrame) -> pd.DataFrame:
+# src/data/transform.py - Função para extrair features de saneamento
+
+def extract_sanitation_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Prepara os dados consolidados de SNIS e SINISA (2020-2024).
-    
-    O dataset contém:
-    - SNIS: 2020-2022
-    - SINISA: 2023-2024
-    
-    Realiza:
-    - Padronização de nomes de colunas
-    - Conversão de tipos
-    - Tratamento de valores faltantes
-    - Criação de features derivadas
+    Extrai e cria features relevantes de saneamento para previsão de dengue.
     """
     df = df.copy()
     
     # ============================================================
-    # 1. RENOMEAR COLUNAS PRINCIPAIS
+    # 1. FEATURES ESSENCIAIS 
     # ============================================================
     
+    keep_cols = [
+        # Identificadores
+        'codigo_do_ibge_cod_ibge',
+        'ano_de_referencia',
+        'uf',
+        'municipio_nom_mun',
+        
+        # População
+        'populacao_total_dfe0001',
+        'populacao_urbana_dfe0002',
+        'populacao_rural_dfe0003',
+        
+        # Área
+        'area_km2_ogm0005',
+        
+        # Domicílios
+        'quantidade_de_domicilios_totais_existente_no_municipio_ogm4006',
+        
+        # Cobertura de Resíduos (CRÍTICO)
+        'irs0001_cobertura_da_populacao_total_com_coleta_de_residuos_solidos_domiciliares_percentual',
+        'irs0005_cobertura_da_populacao_total_com_coleta_seletiva_de_residuos_solidos_domiciliares_percentual',
+        
+        # Coleta Seletiva (CRÍTICO)
+        'irs0006_cobertura_da_populacao_urbana_com_coleta_seletiva_direta_de_residuos_solidos_domiciliares_percentual',
+        
+        # Flag de resposta
+        'respondeu_ao_modulo_de_manejo_de_residuos_solidos_2024_sim_nao'
+    ]
+    
+    # Manter apenas colunas que existem
+    keep_cols = [c for c in keep_cols if c in df.columns]
+    df = df[keep_cols].copy()
+        
     rename_map = {
-        'CÓDIGO DO IBGE - Cod_IBGE': 'ibge_code',
-        'MUNICÍPIO - Nom_Mun': 'municipio',
-        'Ano de Referência': 'year',
-        'UF': 'uf',
-        'MACRORREGIÃO - Nom_Região': 'macrorregiao',
-        'CAPITAL - Capital': 'capital',
-        'POPULAÇÃO TOTAL - DFE0001': 'populacao_total',
-        'POPULAÇÃO URBANA - DFE0002': 'populacao_urbana',
-        'POPULAÇÃO RURAL - DFE0003': 'populacao_rural',
-        'Quantidade de domicílios totais existente no município - OGM4006': 'domicilios_totais',
-        'Quantidade de domicílios urbanos existente no município - OGM4004': 'domicilios_urbanos',
-        'Quantidade de domicílios rurais existente no município - OGM4005': 'domicilios_rurais',
-        'Área (Km²) - OGM0005': 'area_km2',
-        'IRS0001 - Cobertura da população total com coleta de resíduos sólidos domiciliares - Percentual': 'cobertura_total',
-        'IRS0002 - Cobertura da população urbana com coleta de resíduos sólidos domiciliares - Percentual': 'cobertura_urbana',
-        'IRS0003 - Cobertura da população rural com coleta de resíduos sólidos domiciliares - Percentual': 'cobertura_rural',
-        'IRS0004 - Cobertura da população urbana com coleta direta de resíduos sólidos domiciliares - Percentual': 'cobertura_urbana_direta',
-        'IRS0005 - Cobertura da população total com coleta seletiva de resíduos sólidos domiciliares - Percentual': 'coleta_seletiva_total',
-        'IRS0006 - Cobertura da população urbana com coleta seletiva direta de resíduos sólidos domiciliares - Percentual': 'coleta_seletiva_urbana',
+        'codigo_do_ibge_cod_ibge': 'ibge_code',
+        'ano_de_referencia': 'year',
+        'municipio_nom_mun': 'municipio',
+        'uf': 'uf',
+        'populacao_total_dfe0001': 'populacao_total',
+        'populacao_urbana_dfe0002': 'populacao_urbana',
+        'populacao_rural_dfe0003': 'populacao_rural',
+        'area_km2_ogm0005': 'area_km2',
+        'quantidade_de_domicilios_totais_existente_no_municipio_ogm4006': 'domicilios_totais',
+        'irs0001_cobertura_da_populacao_total_com_coleta_de_residuos_solidos_domiciliares_percentual': 'cobertura_total',
+        'irs0005_cobertura_da_populacao_total_com_coleta_seletiva_de_residuos_solidos_domiciliares_percentual': 'coleta_seletiva_total',
+        'irs0006_cobertura_da_populacao_urbana_com_coleta_seletiva_direta_de_residuos_solidos_domiciliares_percentual': 'coleta_seletiva_urbana',
+        'respondeu_ao_modulo_de_manejo_de_residuos_solidos_2024_sim_nao': 'respondeu_modulo'
     }
     
     for old, new in rename_map.items():
@@ -297,130 +316,107 @@ def prepare_cleaned_snis_sinisa(df: pd.DataFrame) -> pd.DataFrame:
             df = df.rename(columns={old: new})
     
     # ============================================================
-    # 2. CONVERTER TIPOS
+    # 3. FEATURES DERIVADAS (CRÍTICAS PARA DENGUE)
     # ============================================================
     
-    # Colunas numéricas
-    numeric_cols = [
-        'populacao_total', 'populacao_urbana', 'populacao_rural',
-        'domicilios_totais', 'domicilios_urbanos', 'domicilios_rurais',
-        'area_km2',
-        'cobertura_total', 'cobertura_urbana', 'cobertura_rural',
-        'cobertura_urbana_direta', 'coleta_seletiva_total', 'coleta_seletiva_urbana'
-    ]
-    
-    for col in numeric_cols:
-        if col in df.columns:
-            # Converter vírgula para ponto (formato BR)
-            df[col] = df[col].astype(str).str.replace(',', '.').str.strip()
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    # ============================================================
-    # 3. CRIAR FLAGS DE RESPOSTA
-    # ============================================================
-    
-    # Flag de resposta 2023
-    if 'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2023 - Sim/Não' in df.columns:
-        df['respondeu_2023'] = df['RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2023 - Sim/Não'].astype(str).str.lower().map({
-            'sim': True, 'não': False, 'nao': False
-        }).fillna(False)
-    
-    # Flag de resposta 2024
-    if 'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2024 - Sim/Não' in df.columns:
-        df['respondeu_2024'] = df['RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2024 - Sim/Não'].astype(str).str.lower().map({
-            'sim': True, 'não': False, 'nao': False
-        }).fillna(False)
-    
-    # Criar flag geral de resposta
-    df['respondeu_modulo'] = df['respondeu_2023'] | df['respondeu_2024']
-    
-    # ============================================================
-    # 4. CRIAR FEATURES DERIVADAS
-    # ============================================================
-    
-    # 4.1 Densidade populacional
+    # 3.1 Densidade populacional
     if 'populacao_total' in df.columns and 'area_km2' in df.columns:
         df['densidade_populacional'] = df['populacao_total'] / df['area_km2']
         df['densidade_populacional'] = df['densidade_populacional'].replace([np.inf, -np.inf], np.nan)
     
-    # 4.2 Proporção urbana/rural
+    # 3.2 Proporção urbana
     if 'populacao_urbana' in df.columns and 'populacao_total' in df.columns:
         df['proporcao_urbana'] = df['populacao_urbana'] / df['populacao_total']
         df['proporcao_rural'] = 1 - df['proporcao_urbana']
     
-    # 4.3 Média de moradores por domicílio
-    if 'populacao_total' in df.columns and 'domicilios_totais' in df.columns:
-        df['moradores_por_domicilio'] = df['populacao_total'] / df['domicilios_totais']
-        df['moradores_por_domicilio'] = df['moradores_por_domicilio'].replace([np.inf, -np.inf], np.nan)
-    
-    # 4.4 Cobertura de coleta seletiva (diferença entre total e urbana)
-    if 'coleta_seletiva_total' in df.columns and 'coleta_seletiva_urbana' in df.columns:
-        df['coleta_seletiva_rural'] = df['coleta_seletiva_total'] - df['coleta_seletiva_urbana']
-    
-    # 4.5 Cobertura de coleta rural (diferença entre total e urbana)
-    if 'cobertura_total' in df.columns and 'cobertura_urbana' in df.columns:
-        df['cobertura_rural_estimada'] = df['cobertura_total'] - df['cobertura_urbana']
-    
-    # 4.6 Lacuna de cobertura (total - coleta seletiva)
+    # 3.3 Lacuna de coleta seletiva (MUITO IMPORTANTE para dengue!)
     if 'cobertura_total' in df.columns and 'coleta_seletiva_total' in df.columns:
         df['lacuna_coleta_seletiva'] = df['cobertura_total'] - df['coleta_seletiva_total']
         df['lacuna_coleta_seletiva'] = df['lacuna_coleta_seletiva'].clip(lower=0)
     
-    # 4.7 Índice de qualidade do serviço (simplificado)
-    if 'cobertura_total' in df.columns and 'coleta_seletiva_total' in df.columns:
+    # 3.4 Qualidade do serviço
+    if 'coleta_seletiva_total' in df.columns and 'cobertura_total' in df.columns:
         df['qualidade_servico'] = (df['coleta_seletiva_total'] / (df['cobertura_total'] + 1)) * 100
+        df['qualidade_servico'] = df['qualidade_servico'].clip(upper=100)
+    
+    # 3.5 Índice de Risco de Saneamento (quanto maior, pior)
+    risk_components = []
+    if 'lacuna_coleta_seletiva' in df.columns:
+        risk_components.append(df['lacuna_coleta_seletiva'] / 100)
+    if 'cobertura_total' in df.columns:
+        risk_components.append(1 - df['cobertura_total'] / 100)
+    
+    if risk_components:
+        df['risco_saneamento'] = np.mean(risk_components, axis=0) * 100
+    
+    # 3.6 Cobertura efetiva (ajustada pela urbanização)
+    if 'cobertura_total' in df.columns and 'proporcao_urbana' in df.columns:
+        df['cobertura_efetiva'] = df['cobertura_total'] * (0.7 + 0.3 * df['proporcao_urbana'])
+    
+    # 3.7 Flag: cobertura alta (>80%)
+    if 'cobertura_total' in df.columns:
+        df['cobertura_alta'] = (df['cobertura_total'] > 80).astype(int)
+        df['cobertura_baixa'] = (df['cobertura_total'] < 50).astype(int)
+    
+    # 3.8 Flag: tem coleta seletiva
+    if 'coleta_seletiva_total' in df.columns:
+        df['tem_coleta_seletiva'] = (df['coleta_seletiva_total'] > 0).astype(int)
+        df['coleta_seletiva_alta'] = (df['coleta_seletiva_total'] > 50).astype(int)
+    
+    # 3.9 Flag: densidade alta
+    if 'densidade_populacional' in df.columns:
+        df['densidade_alta'] = (df['densidade_populacional'] > 100).astype(int)
+    
+    # 3.10 Índice de Desenvolvimento do Saneamento (IDS)
+    if all(c in df.columns for c in ['cobertura_total', 'coleta_seletiva_total', 'qualidade_servico']):
+        cobertura_norm = df['cobertura_total'] / 100
+        seletiva_norm = df['coleta_seletiva_total'] / 100
+        qualidade_norm = df['qualidade_servico'] / 100
+        df['ids'] = (cobertura_norm * 0.4 + seletiva_norm * 0.35 + qualidade_norm * 0.25) * 100
     
     # ============================================================
-    # 5. TRATAMENTO DE VALORES FALTANTES
+    # 4. TRATAR VALORES FALTANTES
     # ============================================================
     
-    # 5.1 Preencher população com zeros onde não há dados
-    pop_cols = ['populacao_total', 'populacao_urbana', 'populacao_rural']
-    for col in pop_cols:
-        if col in df.columns:
-            df[col] = df[col].fillna(0)
-    
-    # 5.2 Preencher coberturas com 0 (assumir que não há cobertura)
-    cobertura_cols = [
-        'cobertura_total', 'cobertura_urbana', 'cobertura_rural',
-        'cobertura_urbana_direta', 'coleta_seletiva_total', 'coleta_seletiva_urbana'
+    # Preencher com 0 onde não há dados
+    fill_zero_cols = [
+        'cobertura_total', 'coleta_seletiva_total', 'coleta_seletiva_urbana',
+        'lacuna_coleta_seletiva', 'qualidade_servico', 'risco_saneamento'
     ]
-    for col in cobertura_cols:
-        if col in df.columns:
-            df[col] = df[col].fillna(0)
     
-    # 5.3 Preencher área com mediana por UF
-    if 'area_km2' in df.columns and 'uf' in df.columns:
-        df['area_km2'] = df.groupby('uf')['area_km2'].transform(
-            lambda x: x.fillna(x.median())
-        )
-        df['area_km2'] = df['area_km2'].fillna(df['area_km2'].median())
-    
-    # 5.4 Preencher domicílios
-    dom_cols = ['domicilios_totais', 'domicilios_urbanos', 'domicilios_rurais']
-    for col in dom_cols:
+    for col in fill_zero_cols:
         if col in df.columns:
             df[col] = df[col].fillna(0)
     
     # ============================================================
-    # 6. LIMPAR E PADRONIZAR
+    # 5. SELECIONAR APENAS FEATURES RELEVANTES
     # ============================================================
     
-    # Padronizar nomes de municípios
-    if 'municipio' in df.columns:
-        df['municipio'] = df['municipio'].str.upper().str.strip()
-        df['municipio'] = df['municipio'].str.replace(r'\s+', ' ', regex=True)
-    
-    # Padronizar UF
-    if 'uf' in df.columns:
-        df['uf'] = df['uf'].str.upper().str.strip()
-    
-    # Remover colunas temporárias
-    cols_to_drop = [
-        'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2023 - Sim/Não',
-        'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2024 - Sim/Não',
+    final_cols = [
+        # Identificadores
+        'ibge_code', 'year', 'uf', 'municipio',
+        
+        # Features principais
+        'populacao_total', 'populacao_urbana', 'area_km2',
+        'densidade_populacional', 'proporcao_urbana',
+        
+        # Features de cobertura (CRÍTICAS)
+        'cobertura_total', 'coleta_seletiva_total',
+        'lacuna_coleta_seletiva', 'qualidade_servico',
+        'risco_saneamento', 'cobertura_efetiva',
+        
+        # Flags
+        'cobertura_alta', 'cobertura_baixa',
+        'tem_coleta_seletiva', 'coleta_seletiva_alta',
+        'densidade_alta',
+        
+        # Índices
+        'ids'
     ]
-    df = df.drop(columns=[c for c in cols_to_drop if c in df.columns], errors='ignore')
+    
+    # Manter apenas colunas que existem
+    final_cols = [c for c in final_cols if c in df.columns]
+    df = df[final_cols].copy()
     
     return df
 
