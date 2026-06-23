@@ -1,0 +1,39 @@
+{
+  "shape": [
+    4590975,
+    29
+  ],
+  "columns": [
+    "estacao",
+    "ano",
+    "semana_epi",
+    "semana_id",
+    "temp_media",
+    "temp_min",
+    "temp_max",
+    "temp_std",
+    "temp_max_media",
+    "temp_max_abs",
+    "temp_min_media",
+    "temp_min_abs",
+    "umidade_media",
+    "umidade_min",
+    "umidade_max",
+    "umidade_std",
+    "precipitacao_total",
+    "precipitacao_media",
+    "precipitacao_max",
+    "vento_medio",
+    "vento_max",
+    "pressao_media",
+    "pressao_min",
+    "pressao_max",
+    "rajada_media",
+    "rajada_max",
+    "registros_semana",
+    "outbreak",
+    "casos"
+  ],
+  "transformation_date": "2026-06-23T10:01:43.014125",
+  "n_features": 29
+}
