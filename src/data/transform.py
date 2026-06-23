@@ -162,10 +162,7 @@ def prepare_dengue_target(df: pd.DataFrame) -> pd.DataFrame:
         df['semana_epi'] = df['se'].astype(str).str[4:].astype(int)
         df['semana_id'] = df['ano'].astype(str) + '_SE' + df['semana_epi'].astype(str).str.zfill(2)
     
-    # ============================================================
-    # TRATAMENTO DE NaN EM VARIÁVEIS DE DENGUE
-    # ============================================================
-    
+    # TRATAMENTO DE NaN EM VARIÁVEIS DE DENGUE    
     # 1. casos_est: estimativa de casos (pode ter NaN)
     if 'casos_est' in df.columns:
         # Converter para numérico
@@ -280,39 +277,36 @@ def prepare_snis_data(df: pd.DataFrame, year: int) -> pd.DataFrame:
         'populacao_urbana': 'populacao_urbana',
         'tabela_ge01a_informacoes_gerais_populacao_urbana': 'populacao_urbana',
         
-        # Coleta seletiva
+        # Coleta seletiva (booleano)
         'existencia_de_coleta_seletiva': 'coleta_seletiva',
         'tabela_cs01_informacoes_sobre_coleta_seletiva_de_residuos_solidos_existencia_de_coleta_seletiva': 'coleta_seletiva',
         'cs001_existe_coleta_seletiva_formalizada_pela_prefeitura_no_municipio': 'coleta_seletiva',
         
-        # Varrição
+        # Varrição (numérico)
         'extensao_de_sarjeta_varrida': 'extensao_varricao',
         'extensao_de_sarjeta_varrida_total': 'extensao_varricao',
         'extensao_de_sarjetas_varridas': 'extensao_varricao',
         'tabela_va01_informacoes_sobre_servico_de_varricao_extensao_de_sarjeta_varrida': 'extensao_varricao',
         
-        # Capinação
+        # Capinação (booleano)
         'servico_de_capina_e_rocada_existencia': 'capinacao',
         'cp001_existiu_o_servico_de_capina_e_rocada_no_municipio': 'capinacao',
         'tabela_cp01_informacoes_sobre_servicos_de_capina_e_rocada_servico_de_capina_e_rocada': 'capinacao',
         
-        # Catadores
+        # Catadores (booleano)
         'existencia_de_catadores_dispersos': 'catadores_dispersos',
         'tabela_ca01_informacoes_sobre_catadores_existencia_de_catadores_dispersos': 'catadores_dispersos',
         'ca004_existem_catadores_de_materiais_reciclaveis_que_trabalham_dispersos_na_cidade': 'catadores_dispersos',
         
-        # Quantidades
+        # Quantidades (numérico - pode ter NaN)
         'quantidade_total_de_residuos_coletados_total': 'residuos_coletados',
         'quantidade_de_rdo_e_rpu_coletada_por_todos_os_agentes': 'residuos_coletados',
         'co119_quantidade_total_de_rdo_e_rpu_coletada_por_todos_os_agentes': 'residuos_coletados',
-        'quantidade_de_rdo_coletada_pelo_agente_publico': 'residuos_coletados',
-        'co108_quantidade_de_rdo_coletada_pelo_agente_publico': 'residuos_coletados',
         
-        # Trabalhadores
+        # Trabalhadores (numérico - pode ter NaN)
         'quantidade_de_varredores_publico': 'varredores',
         'quantidade_de_varredores': 'varredores',
         'quantidade_de_varredores_1': 'varredores',
-        'quantidade_de_varredores_publico_1': 'varredores',
     }
     
     # Aplicar renomeação
@@ -331,111 +325,66 @@ def prepare_snis_data(df: pd.DataFrame, year: int) -> pd.DataFrame:
     df = df[keep_cols].copy()
     
     # ============================================================
-    # TRATAMENTO ROBUSTO DE NaN
+    # TRATAMENTO DE NaN PARA VARIÁVEIS NUMÉRICAS
     # ============================================================
     
-    # 1. Garantir que colunas numéricas são float
-    numeric_cols = ['populacao_total', 'populacao_urbana', 'residuos_coletados', 
-                    'varredores', 'extensao_varricao']
-    
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-    
-    # 2. Tratar residuos_coletados
+    # 1. Para residuos_coletados: preencher com 0 (assumir que se não tem dado, é 0)
+    #    Ou usar a mediana por ano/uf
     if 'residuos_coletados' in df.columns:
-        # Criar flag de missing
-        df['residuos_coletados_missing'] = df['residuos_coletados'].isna().astype(int)
+        # Converter para numérico
+        df['residuos_coletados'] = pd.to_numeric(df['residuos_coletados'], errors='coerce')
         
-        # Método 1: Preencher com mediana por (UF, ano)
-        if 'uf' in df.columns and 'year' in df.columns:
-            df['residuos_coletados'] = df.groupby(['uf', 'year'])['residuos_coletados'].transform(
+        # Calcular mediana por ano e UF
+        if 'uf' in df.columns:
+            df['residuos_coletados'] = df.groupby(['year', 'uf'])['residuos_coletados'].transform(
                 lambda x: x.fillna(x.median())
             )
         
-        # Método 2: Preencher com mediana por ano
-        if df['residuos_coletados'].isna().any() and 'year' in df.columns:
-            df['residuos_coletados'] = df.groupby('year')['residuos_coletados'].transform(
-                lambda x: x.fillna(x.median())
-            )
-        
-        # Método 3: Preencher com mediana global
+        # Preencher restantes com mediana global
         if df['residuos_coletados'].isna().any():
             global_median = df['residuos_coletados'].median()
             df['residuos_coletados'] = df['residuos_coletados'].fillna(global_median)
         
-        # Método 4: Se ainda houver NaN, preencher com 0
+        # Se ainda houver NaN, preencher com 0
         df['residuos_coletados'] = df['residuos_coletados'].fillna(0)
     
-    # 3. Tratar varredores
+    # 2. Para varredores: preencher com 0 (assumir que se não tem dado, é 0)
     if 'varredores' in df.columns:
-        # Criar flag de missing
-        df['varredores_missing'] = df['varredores'].isna().astype(int)
+        df['varredores'] = pd.to_numeric(df['varredores'], errors='coerce')
         
-        # Método 1: Preencher com mediana por (UF, ano)
-        if 'uf' in df.columns and 'year' in df.columns:
-            df['varredores'] = df.groupby(['uf', 'year'])['varredores'].transform(
+        # Calcular mediana por ano e UF
+        if 'uf' in df.columns:
+            df['varredores'] = df.groupby(['year', 'uf'])['varredores'].transform(
                 lambda x: x.fillna(x.median())
             )
         
-        # Método 2: Preencher com mediana por ano
-        if df['varredores'].isna().any() and 'year' in df.columns:
-            df['varredores'] = df.groupby('year')['varredores'].transform(
-                lambda x: x.fillna(x.median())
-            )
-        
-        # Método 3: Preencher com mediana global
+        # Preencher restantes com mediana global
         if df['varredores'].isna().any():
             global_median = df['varredores'].median()
             df['varredores'] = df['varredores'].fillna(global_median)
         
-        # Método 4: Se ainda houver NaN, preencher com 0
+        # Se ainda houver NaN, preencher com 0
         df['varredores'] = df['varredores'].fillna(0)
     
-    # 4. Tratar extensao_varricao
+    # 3. Para extensao_varricao: similar
     if 'extensao_varricao' in df.columns:
-        # Criar flag de missing
-        df['extensao_varricao_missing'] = df['extensao_varricao'].isna().astype(int)
-        
-        # Preencher com mediana por (UF, ano)
-        if 'uf' in df.columns and 'year' in df.columns:
-            df['extensao_varricao'] = df.groupby(['uf', 'year'])['extensao_varricao'].transform(
-                lambda x: x.fillna(x.median())
-            )
-        
-        # Preencher com mediana global
-        if df['extensao_varricao'].isna().any():
-            df['extensao_varricao'] = df['extensao_varricao'].fillna(
-                df['extensao_varricao'].median()
-            )
-        
-        # Se ainda houver NaN, preencher com 0
+        df['extensao_varricao'] = pd.to_numeric(df['extensao_varricao'], errors='coerce')
         df['extensao_varricao'] = df['extensao_varricao'].fillna(0)
     
-    # 5. Tratar populução
-    for col in ['populacao_total', 'populacao_urbana']:
-        if col in df.columns:
-            # Preencher com mediana por ano
-            if 'year' in df.columns:
-                df[col] = df.groupby('year')[col].transform(
-                    lambda x: x.fillna(x.median())
-                )
-            # Preencher com mediana global
-            df[col] = df[col].fillna(df[col].median())
-            # Se ainda houver NaN, preencher com 0
-            df[col] = df[col].fillna(0)
-    
-    # 6. Tratar variáveis booleanas
+    # 4. Para variáveis booleanas: converter para boolean e preencher False
     bool_cols = ['coleta_seletiva', 'capinacao', 'catadores_dispersos']
     for col in bool_cols:
         if col in df.columns:
-            # Converter strings para boolean
+            # Converter para booleano
             if df[col].dtype == 'object':
-                df[col] = df[col].astype(str).str.lower().map(
-                    {'sim': True, 'não': False, 'nao': False, 'true': True, 'false': False}
-                )
-            # Preencher NaN com False
+                df[col] = df[col].astype(str).str.lower().map({'sim': True, 'não': False, 'nao': False})
             df[col] = df[col].fillna(False).astype(bool)
+    
+    # 5. Para populacao_total e populacao_urbana: usar mediana se faltar
+    for col in ['populacao_total', 'populacao_urbana']:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+            df[col] = df[col].fillna(df[col].median())
     
     # Garantir consistência com preprocess
     df = normalize_column_names(df)
@@ -569,3 +518,96 @@ def load_transformed_data(name: str, input_dir: str = 'data/processed/') -> pd.D
     Carrega dados transformados do Parquet.
     """
     return pd.read_parquet(f'{input_dir}/{name}.parquet')
+
+def validate_transformation(df: pd.DataFrame, dataset_name: str) -> dict:
+    """
+    Valida os dados transformados.
+    """
+    validation = {
+        'dataset': dataset_name,
+        'shape': df.shape,
+        'n_features': len(df.columns),
+        'n_missing': df.isnull().sum().sum(),
+        'columns_with_missing': df.columns[df.isnull().any()].tolist(),
+        'missing_counts': df.isnull().sum().to_dict(),
+        'date_range': None,
+        'memory_usage': df.memory_usage(deep=True).sum() / 1024**2  # MB
+    }
+    
+    # Verificar colunas de data
+    if 'ano' in df.columns and 'semana_epi' in df.columns:
+        validation['date_range'] = f"{df['ano'].min()}-{df['semana_epi'].min()} a {df['ano'].max()}-{df['semana_epi'].max()}"
+    
+    # Verificar colunas específicas
+    if 'outbreak' in df.columns:
+        validation['target_distribution'] = df['outbreak'].value_counts().to_dict()
+    
+    return validation
+
+
+def print_validation(validation: dict):
+    """Imprime validação de forma legível."""
+    print("\n" + "="*60)
+    print(f"VALIDATION: {validation['dataset']}")
+    print("="*60)
+    print(f"Shape: {validation['shape']}")
+    print(f"Features: {validation['n_features']}")
+    print(f"Memory: {validation['memory_usage']:.2f} MB")
+    
+    if validation['date_range']:
+        print(f"Date range: {validation['date_range']}")
+    
+    if validation['n_missing'] > 0:
+        print(f"\n⚠️ Missing values: {validation['n_missing']}")
+        print("Columns with missing:")
+        for col in validation['columns_with_missing']:
+            print(f"  {col}: {validation['missing_counts'][col]}")
+    else:
+        print("\n✅ No missing values found!")
+    
+    if 'target_distribution' in validation:
+        print(f"\nTarget distribution (outbreak):")
+        for label, count in validation['target_distribution'].items():
+            print(f"  {label}: {count}")
+    
+    print("="*60)    
+
+def create_unified_dataset(
+    inmet_df: pd.DataFrame,
+    dengue_df: pd.DataFrame,
+    snis_df: pd.DataFrame = None,
+    sinisa_df: pd.DataFrame = None,
+    station_city_map: pd.DataFrame = None
+) -> pd.DataFrame:
+    """
+    Cria um dataset unificado combinando clima, dengue e saneamento.
+    
+    Args:
+        inmet_df: Dados climáticos agregados por semana
+        dengue_df: Dados de dengue preparados
+        snis_df: Dados SNIS (2020-2022)
+        sinisa_df: Dados SINISA (2023-2024)
+        station_city_map: Mapeamento estação -> município (se disponível)
+    """
+    # 1. Merge clima + dengue
+    unified = inmet_df.merge(
+        dengue_df[['semana_id', 'casos', 'incidencia_100k', 'outbreak']],
+        on='semana_id',
+        how='left'
+    )
+    
+    # 2. Adicionar dados de saneamento se disponíveis
+    if snis_df is not None and not snis_df.empty:
+        # Para cada ano, propagar features de saneamento para todas as semanas
+        # Isso é uma simplificação - idealmente você teria dados mensais
+        unified = unified.merge(
+            snis_df[['ibge_code', 'year', 'populacao_total', 'coleta_seletiva', 'extensao_varricao']],
+            left_on=['ano', 'estacao'],  # Ajuste conforme sua correspondência
+            right_on=['year', 'ibge_code'],
+            how='left'
+        )
+    
+    # 3. Garantir consistência
+    unified = normalize_column_names(unified)
+    
+    return unified    
