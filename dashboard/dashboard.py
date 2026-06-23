@@ -25,8 +25,8 @@ st.caption(f"Rio Grande do Sul, Brasil | {datetime.now().strftime('%d/%m/%Y %H:%
 def load_data():
     """Carrega os dados processados."""
     
-    # Caminho absoluto baseado no que descobrimos
-    data_dir = '/home/jcp/Documentos/cd-trabfinal/notebooks/data/processed/'
+    # caminho dos parquets modificar conforme a maquina ex /home/jcp/Documentos/cd-trabfinal/notebooks/data/processed/
+    data_dir = '.../notebooks/data/processed/'
     
     try:
         inmet = pd.read_parquet(os.path.join(data_dir, 'inmet_weekly.parquet'))
