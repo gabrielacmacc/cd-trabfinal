@@ -248,242 +248,181 @@ def prepare_dengue_target(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
+# ----- 3.4 Prepare Sanitation Data (SNIS + SINISA Consolidado) -------------
 
-# ----- 3.4 Prepare Sanitation Data (SNIS) ----------------------------------
-def prepare_snis_data(df: pd.DataFrame, year: int) -> pd.DataFrame:
+def prepare_cleaned_snis_sinisa(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Prepara dados do SNIS (2020-2022) para uso no modelo.
-    Extrai features relevantes de saneamento.
+    Prepara os dados consolidados de SNIS e SINISA (2020-2024).
+    
+    O dataset contém:
+    - SNIS: 2020-2022
+    - SINISA: 2023-2024
+    
+    Realiza:
+    - Padronização de nomes de colunas
+    - Conversão de tipos
+    - Tratamento de valores faltantes
+    - Criação de features derivadas
     """
     df = df.copy()
-    df['year'] = year
     
-    # Mapeamento de colunas comuns do SNIS
+    # ============================================================
+    # 1. RENOMEAR COLUNAS PRINCIPAIS
+    # ============================================================
+    
     rename_map = {
-        # Identificação
-        'codigo_do_municipio': 'ibge_code',
-        'municipios_codigo_do_municipio': 'ibge_code',
-        'codigo_do_municipio_1': 'ibge_code',
-        'municipio': 'municipio',
-        'municipios_municipio': 'municipio',
-        'uf': 'uf',
-        'municipios_uf': 'uf',
-        'estado': 'uf',
-        
-        # População
-        'total_populacao': 'populacao_total',
-        'populacao_total': 'populacao_total',
-        'tabela_ge01a_informacoes_gerais_total_populacao': 'populacao_total',
-        'populacao_urbana': 'populacao_urbana',
-        'tabela_ge01a_informacoes_gerais_populacao_urbana': 'populacao_urbana',
-        
-        # Coleta seletiva (booleano)
-        'existencia_de_coleta_seletiva': 'coleta_seletiva',
-        'tabela_cs01_informacoes_sobre_coleta_seletiva_de_residuos_solidos_existencia_de_coleta_seletiva': 'coleta_seletiva',
-        'cs001_existe_coleta_seletiva_formalizada_pela_prefeitura_no_municipio': 'coleta_seletiva',
-        
-        # Varrição (numérico)
-        'extensao_de_sarjeta_varrida': 'extensao_varricao',
-        'extensao_de_sarjeta_varrida_total': 'extensao_varricao',
-        'extensao_de_sarjetas_varridas': 'extensao_varricao',
-        'tabela_va01_informacoes_sobre_servico_de_varricao_extensao_de_sarjeta_varrida': 'extensao_varricao',
-        
-        # Capinação (booleano)
-        'servico_de_capina_e_rocada_existencia': 'capinacao',
-        'cp001_existiu_o_servico_de_capina_e_rocada_no_municipio': 'capinacao',
-        'tabela_cp01_informacoes_sobre_servicos_de_capina_e_rocada_servico_de_capina_e_rocada': 'capinacao',
-        
-        # Catadores (booleano)
-        'existencia_de_catadores_dispersos': 'catadores_dispersos',
-        'tabela_ca01_informacoes_sobre_catadores_existencia_de_catadores_dispersos': 'catadores_dispersos',
-        'ca004_existem_catadores_de_materiais_reciclaveis_que_trabalham_dispersos_na_cidade': 'catadores_dispersos',
-        
-        # Quantidades (numérico - pode ter NaN)
-        'quantidade_total_de_residuos_coletados_total': 'residuos_coletados',
-        'quantidade_de_rdo_e_rpu_coletada_por_todos_os_agentes': 'residuos_coletados',
-        'co119_quantidade_total_de_rdo_e_rpu_coletada_por_todos_os_agentes': 'residuos_coletados',
-        
-        # Trabalhadores (numérico - pode ter NaN)
-        'quantidade_de_varredores_publico': 'varredores',
-        'quantidade_de_varredores': 'varredores',
-        'quantidade_de_varredores_1': 'varredores',
+        'CÓDIGO DO IBGE - Cod_IBGE': 'ibge_code',
+        'MUNICÍPIO - Nom_Mun': 'municipio',
+        'Ano de Referência': 'year',
+        'UF': 'uf',
+        'MACRORREGIÃO - Nom_Região': 'macrorregiao',
+        'CAPITAL - Capital': 'capital',
+        'POPULAÇÃO TOTAL - DFE0001': 'populacao_total',
+        'POPULAÇÃO URBANA - DFE0002': 'populacao_urbana',
+        'POPULAÇÃO RURAL - DFE0003': 'populacao_rural',
+        'Quantidade de domicílios totais existente no município - OGM4006': 'domicilios_totais',
+        'Quantidade de domicílios urbanos existente no município - OGM4004': 'domicilios_urbanos',
+        'Quantidade de domicílios rurais existente no município - OGM4005': 'domicilios_rurais',
+        'Área (Km²) - OGM0005': 'area_km2',
+        'IRS0001 - Cobertura da população total com coleta de resíduos sólidos domiciliares - Percentual': 'cobertura_total',
+        'IRS0002 - Cobertura da população urbana com coleta de resíduos sólidos domiciliares - Percentual': 'cobertura_urbana',
+        'IRS0003 - Cobertura da população rural com coleta de resíduos sólidos domiciliares - Percentual': 'cobertura_rural',
+        'IRS0004 - Cobertura da população urbana com coleta direta de resíduos sólidos domiciliares - Percentual': 'cobertura_urbana_direta',
+        'IRS0005 - Cobertura da população total com coleta seletiva de resíduos sólidos domiciliares - Percentual': 'coleta_seletiva_total',
+        'IRS0006 - Cobertura da população urbana com coleta seletiva direta de resíduos sólidos domiciliares - Percentual': 'coleta_seletiva_urbana',
     }
     
-    # Aplicar renomeação
     for old, new in rename_map.items():
         if old in df.columns:
             df = df.rename(columns={old: new})
     
-    # Selecionar colunas relevantes
-    keep_cols = ['ibge_code', 'municipio', 'uf', 'year', 
-                 'populacao_total', 'populacao_urbana',
-                 'coleta_seletiva', 'extensao_varricao', 'capinacao',
-                 'catadores_dispersos', 'residuos_coletados', 'varredores']
-    
-    # Manter apenas colunas que existem
-    keep_cols = [c for c in keep_cols if c in df.columns]
-    df = df[keep_cols].copy()
-    
     # ============================================================
-    # TRATAMENTO DE NaN PARA VARIÁVEIS NUMÉRICAS
+    # 2. CONVERTER TIPOS
     # ============================================================
     
-    # 1. Para residuos_coletados: preencher com 0 (assumir que se não tem dado, é 0)
-    #    Ou usar a mediana por ano/uf
-    if 'residuos_coletados' in df.columns:
-        # Converter para numérico
-        df['residuos_coletados'] = pd.to_numeric(df['residuos_coletados'], errors='coerce')
-        
-        # Calcular mediana por ano e UF
-        if 'uf' in df.columns:
-            df['residuos_coletados'] = df.groupby(['year', 'uf'])['residuos_coletados'].transform(
-                lambda x: x.fillna(x.median())
-            )
-        
-        # Preencher restantes com mediana global
-        if df['residuos_coletados'].isna().any():
-            global_median = df['residuos_coletados'].median()
-            df['residuos_coletados'] = df['residuos_coletados'].fillna(global_median)
-        
-        # Se ainda houver NaN, preencher com 0
-        df['residuos_coletados'] = df['residuos_coletados'].fillna(0)
+    # Colunas numéricas
+    numeric_cols = [
+        'populacao_total', 'populacao_urbana', 'populacao_rural',
+        'domicilios_totais', 'domicilios_urbanos', 'domicilios_rurais',
+        'area_km2',
+        'cobertura_total', 'cobertura_urbana', 'cobertura_rural',
+        'cobertura_urbana_direta', 'coleta_seletiva_total', 'coleta_seletiva_urbana'
+    ]
     
-    # 2. Para varredores: preencher com 0 (assumir que se não tem dado, é 0)
-    if 'varredores' in df.columns:
-        df['varredores'] = pd.to_numeric(df['varredores'], errors='coerce')
-        
-        # Calcular mediana por ano e UF
-        if 'uf' in df.columns:
-            df['varredores'] = df.groupby(['year', 'uf'])['varredores'].transform(
-                lambda x: x.fillna(x.median())
-            )
-        
-        # Preencher restantes com mediana global
-        if df['varredores'].isna().any():
-            global_median = df['varredores'].median()
-            df['varredores'] = df['varredores'].fillna(global_median)
-        
-        # Se ainda houver NaN, preencher com 0
-        df['varredores'] = df['varredores'].fillna(0)
-    
-    # 3. Para extensao_varricao: similar
-    if 'extensao_varricao' in df.columns:
-        df['extensao_varricao'] = pd.to_numeric(df['extensao_varricao'], errors='coerce')
-        df['extensao_varricao'] = df['extensao_varricao'].fillna(0)
-    
-    # 4. Para variáveis booleanas: converter para boolean e preencher False
-    bool_cols = ['coleta_seletiva', 'capinacao', 'catadores_dispersos']
-    for col in bool_cols:
+    for col in numeric_cols:
         if col in df.columns:
-            # Converter para booleano
-            if df[col].dtype == 'object':
-                df[col] = df[col].astype(str).str.lower().map({'sim': True, 'não': False, 'nao': False})
-            df[col] = df[col].fillna(False).astype(bool)
-    
-    # 5. Para populacao_total e populacao_urbana: usar mediana se faltar
-    for col in ['populacao_total', 'populacao_urbana']:
-        if col in df.columns:
+            # Converter vírgula para ponto (formato BR)
+            df[col] = df[col].astype(str).str.replace(',', '.').str.strip()
             df[col] = pd.to_numeric(df[col], errors='coerce')
-            df[col] = df[col].fillna(df[col].median())
     
-    # Garantir consistência com preprocess
-    df = normalize_column_names(df)
+    # ============================================================
+    # 3. CRIAR FLAGS DE RESPOSTA
+    # ============================================================
+    
+    # Flag de resposta 2023
+    if 'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2023 - Sim/Não' in df.columns:
+        df['respondeu_2023'] = df['RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2023 - Sim/Não'].astype(str).str.lower().map({
+            'sim': True, 'não': False, 'nao': False
+        }).fillna(False)
+    
+    # Flag de resposta 2024
+    if 'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2024 - Sim/Não' in df.columns:
+        df['respondeu_2024'] = df['RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2024 - Sim/Não'].astype(str).str.lower().map({
+            'sim': True, 'não': False, 'nao': False
+        }).fillna(False)
+    
+    # Criar flag geral de resposta
+    df['respondeu_modulo'] = df['respondeu_2023'] | df['respondeu_2024']
+    
+    # ============================================================
+    # 4. CRIAR FEATURES DERIVADAS
+    # ============================================================
+    
+    # 4.1 Densidade populacional
+    if 'populacao_total' in df.columns and 'area_km2' in df.columns:
+        df['densidade_populacional'] = df['populacao_total'] / df['area_km2']
+        df['densidade_populacional'] = df['densidade_populacional'].replace([np.inf, -np.inf], np.nan)
+    
+    # 4.2 Proporção urbana/rural
+    if 'populacao_urbana' in df.columns and 'populacao_total' in df.columns:
+        df['proporcao_urbana'] = df['populacao_urbana'] / df['populacao_total']
+        df['proporcao_rural'] = 1 - df['proporcao_urbana']
+    
+    # 4.3 Média de moradores por domicílio
+    if 'populacao_total' in df.columns and 'domicilios_totais' in df.columns:
+        df['moradores_por_domicilio'] = df['populacao_total'] / df['domicilios_totais']
+        df['moradores_por_domicilio'] = df['moradores_por_domicilio'].replace([np.inf, -np.inf], np.nan)
+    
+    # 4.4 Cobertura de coleta seletiva (diferença entre total e urbana)
+    if 'coleta_seletiva_total' in df.columns and 'coleta_seletiva_urbana' in df.columns:
+        df['coleta_seletiva_rural'] = df['coleta_seletiva_total'] - df['coleta_seletiva_urbana']
+    
+    # 4.5 Cobertura de coleta rural (diferença entre total e urbana)
+    if 'cobertura_total' in df.columns and 'cobertura_urbana' in df.columns:
+        df['cobertura_rural_estimada'] = df['cobertura_total'] - df['cobertura_urbana']
+    
+    # 4.6 Lacuna de cobertura (total - coleta seletiva)
+    if 'cobertura_total' in df.columns and 'coleta_seletiva_total' in df.columns:
+        df['lacuna_coleta_seletiva'] = df['cobertura_total'] - df['coleta_seletiva_total']
+        df['lacuna_coleta_seletiva'] = df['lacuna_coleta_seletiva'].clip(lower=0)
+    
+    # 4.7 Índice de qualidade do serviço (simplificado)
+    if 'cobertura_total' in df.columns and 'coleta_seletiva_total' in df.columns:
+        df['qualidade_servico'] = (df['coleta_seletiva_total'] / (df['cobertura_total'] + 1)) * 100
+    
+    # ============================================================
+    # 5. TRATAMENTO DE VALORES FALTANTES
+    # ============================================================
+    
+    # 5.1 Preencher população com zeros onde não há dados
+    pop_cols = ['populacao_total', 'populacao_urbana', 'populacao_rural']
+    for col in pop_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(0)
+    
+    # 5.2 Preencher coberturas com 0 (assumir que não há cobertura)
+    cobertura_cols = [
+        'cobertura_total', 'cobertura_urbana', 'cobertura_rural',
+        'cobertura_urbana_direta', 'coleta_seletiva_total', 'coleta_seletiva_urbana'
+    ]
+    for col in cobertura_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(0)
+    
+    # 5.3 Preencher área com mediana por UF
+    if 'area_km2' in df.columns and 'uf' in df.columns:
+        df['area_km2'] = df.groupby('uf')['area_km2'].transform(
+            lambda x: x.fillna(x.median())
+        )
+        df['area_km2'] = df['area_km2'].fillna(df['area_km2'].median())
+    
+    # 5.4 Preencher domicílios
+    dom_cols = ['domicilios_totais', 'domicilios_urbanos', 'domicilios_rurais']
+    for col in dom_cols:
+        if col in df.columns:
+            df[col] = df[col].fillna(0)
+    
+    # ============================================================
+    # 6. LIMPAR E PADRONIZAR
+    # ============================================================
+    
+    # Padronizar nomes de municípios
+    if 'municipio' in df.columns:
+        df['municipio'] = df['municipio'].str.upper().str.strip()
+        df['municipio'] = df['municipio'].str.replace(r'\s+', ' ', regex=True)
+    
+    # Padronizar UF
+    if 'uf' in df.columns:
+        df['uf'] = df['uf'].str.upper().str.strip()
+    
+    # Remover colunas temporárias
+    cols_to_drop = [
+        'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2023 - Sim/Não',
+        'RESPONDEU AO MÓDULO DE MANEJO DE RESÍDUOS SÓLIDOS 2024 - Sim/Não',
+    ]
+    df = df.drop(columns=[c for c in cols_to_drop if c in df.columns], errors='ignore')
     
     return df
-
-
-def combine_snis_data(snis_2020: pd.DataFrame, 
-                      snis_2021: pd.DataFrame, 
-                      snis_2022: pd.DataFrame) -> pd.DataFrame:
-    """
-    Combina dados do SNIS de 2020, 2021 e 2022 em um único DataFrame.
-    """
-    # Preparar cada ano
-    snis_list = []
-    
-    if snis_2020 is not None and not snis_2020.empty:
-        snis_list.append(prepare_snis_data(snis_2020, 2020))
-    
-    if snis_2021 is not None and not snis_2021.empty:
-        snis_list.append(prepare_snis_data(snis_2021, 2021))
-    
-    if snis_2022 is not None and not snis_2022.empty:
-        snis_list.append(prepare_snis_data(snis_2022, 2022))
-    
-    if not snis_list:
-        return pd.DataFrame()
-    
-    # Combinar
-    combined = pd.concat(snis_list, ignore_index=True)
-    
-    # Garantir consistência
-    combined = normalize_column_names(combined)
-    
-    return combined
-
-
-# ----- 3.5 Prepare Sanitation Data (SINISA) --------------------------------
-
-def prepare_sinisa_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Prepara dados do SINISA (2023-2024) para uso no modelo.
-    """
-    df = df.copy()
-    
-    # Mapeamento de colunas do SINISA
-    rename_map = {
-        'codigo_do_ibge': 'ibge_code',
-        'municipio': 'municipio',
-        'uf': 'uf',
-        'populacao_total': 'populacao_total',
-        'quantidade_de_domicilios_rurais_existente_no_municipio': 'domicilios_rurais',
-        'area_km2': 'area_km2',
-        'executor_do_servico_de_varricao_de_sarjetas_e_logradouros_publicos': 'executor_varricao',
-        'extensao_de_sarjetas_varridas': 'extensao_varricao',
-        'ha_algum_tipo_de_varricao_mecanizada_no_municipio': 'varricao_mecanizada',
-        'houve_contratacao_de_trabalhadores_temporarios_para_reforco_na_execucao_de_algum_dos_servicos_de_limpeza_urbana_e_ou_manejo_de_residuos_solidos': 'trabalhadores_temporarios',
-        'trabalhadores_temporarios_contratados': 'qtd_trabalhadores_temporarios',
-    }
-    
-    # Aplicar renomeação
-    for old, new in rename_map.items():
-        if old in df.columns:
-            df = df.rename(columns={old: new})
-    
-    # Extrair ano da coluna 'year' ou de 'ano_referencia'
-    if 'year' not in df.columns and 'ano_de_referencia' in df.columns:
-        df['year'] = df['ano_de_referencia']
-    
-    # Selecionar colunas relevantes
-    keep_cols = ['ibge_code', 'municipio', 'uf', 'year',
-                 'populacao_total', 'domicilios_rurais', 'area_km2',
-                 'executor_varricao', 'extensao_varricao', 'varricao_mecanizada',
-                 'trabalhadores_temporarios', 'qtd_trabalhadores_temporarios']
-    
-    # Manter apenas colunas que existem
-    keep_cols = [c for c in keep_cols if c in df.columns]
-    df = df[keep_cols].copy()
-    
-    # Garantir consistência com preprocess
-    df = normalize_column_names(df)
-    
-    return df
-
-
-# ----- 3.6 Sanitation Feature Extraction -----------------------------------
-
-def extract_sanitation_features_for_merge(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Extrai features de saneamento para merge com dados climáticos.
-    """
-    df = df.copy()
-    
-    # Garantir que ibge_code é string com 6 dígitos (padrão)
-    if 'ibge_code' in df.columns:
-        df['ibge_code'] = df['ibge_code'].astype(str).str.zfill(6)
-    
-    return df
-
 
 # ----- 3.7 Save/Load Functions ---------------------------------------------
 
@@ -572,42 +511,47 @@ def print_validation(validation: dict):
     
     print("="*60)    
 
-def create_unified_dataset(
-    inmet_df: pd.DataFrame,
+def unify_datasets(
+    climate_df: pd.DataFrame,
     dengue_df: pd.DataFrame,
-    snis_df: pd.DataFrame = None,
-    sinisa_df: pd.DataFrame = None,
-    station_city_map: pd.DataFrame = None
+    sanitation_df: pd.DataFrame,
+    merge_col: str = 'semana_id'
 ) -> pd.DataFrame:
     """
-    Cria um dataset unificado combinando clima, dengue e saneamento.
+    Une datasets climáticos, de dengue e de saneamento.
     
     Args:
-        inmet_df: Dados climáticos agregados por semana
-        dengue_df: Dados de dengue preparados
-        snis_df: Dados SNIS (2020-2022)
-        sinisa_df: Dados SINISA (2023-2024)
-        station_city_map: Mapeamento estação -> município (se disponível)
+        climate_df: DataFrame com dados climáticos (INMET)
+        dengue_df: DataFrame com dados de dengue
+        sanitation_df: DataFrame com dados de saneamento (SNIS/SINISA)
+        merge_col: Coluna para merge (semana_id)
+    
+    Returns:
+        DataFrame unificado
     """
     # 1. Merge clima + dengue
-    unified = inmet_df.merge(
+    unified = climate_df.merge(
         dengue_df[['semana_id', 'casos', 'incidencia_100k', 'outbreak']],
         on='semana_id',
         how='left'
     )
     
-    # 2. Adicionar dados de saneamento se disponíveis
-    if snis_df is not None and not snis_df.empty:
-        # Para cada ano, propagar features de saneamento para todas as semanas
-        # Isso é uma simplificação - idealmente você teria dados mensais
-        unified = unified.merge(
-            snis_df[['ibge_code', 'year', 'populacao_total', 'coleta_seletiva', 'extensao_varricao']],
-            left_on=['ano', 'estacao'],  # Ajuste conforme sua correspondência
-            right_on=['year', 'ibge_code'],
-            how='left'
-        )
+    # 2. Adicionar dados de saneamento
+    # O merge precisa ser por município e ano
+    if 'municipio' in sanitation_df.columns and 'ano' in climate_df.columns:
+        # Criar chave de merge
+        # Nota: Isso requer correspondência entre estação e município
+        
+        # Por enquanto, vamos apenas selecionar as features de saneamento
+        # para um merge futuro
+        
+        sanitation_features = sanitation_df[['ibge_code', 'year', 
+                                             'populacao_total', 'populacao_urbana',
+                                             'cobertura_total', 'coleta_seletiva_total',
+                                             'qualidade_servico', 'densidade_populacional']].copy()
+        
+        # Aqui você precisaria de um mapeamento estação -> município
+        # Para simplificar, vamos apenas retornar o climate + dengue por enquanto
+        pass
     
-    # 3. Garantir consistência
-    unified = normalize_column_names(unified)
-    
-    return unified    
+    return unified
