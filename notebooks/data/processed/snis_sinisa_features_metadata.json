@@ -1,20 +1,19 @@
 {
   "shape": [
     2485,
-    10
+    9
   ],
   "columns": [
-    "municipio_nom_mun",
-    "uf",
-    "codigo_do_ibge_cod_ibge",
-    "ano_de_referencia",
-    "area_km2_ogm0005",
-    "populacao_total_dfe0001",
-    "populacao_urbana_dfe0002",
-    "populacao_rural_dfe0003",
-    "quantidade_de_domicilios_totais_existente_no_municipio_ogm4006",
-    "irs0001_cobertura_da_populacao_total_com_coleta_de_residuos_solidos_domiciliares_percentual"
+    "municipio",
+    "estado",
+    "codigo do ibge",
+    "ano de referencia",
+    "area km2",
+    "populacao total",
+    "populacao urbana",
+    "populacao rural",
+    "quantidade de domicilios totais existente no municipio"
   ],
-  "transformation_date": "2026-06-23T10:56:23.817381",
-  "n_features": 10
+  "transformation_date": "2026-06-23T11:16:48.841233",
+  "n_features": 9
 }
