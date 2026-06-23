@@ -529,17 +529,7 @@ def unify_datasets(
     # 1. Selecionar features climáticas (X)
     climate_features = climate_df.copy()
     if climate_features['semana_id'].duplicated().any():
-        print("   Agrupando linhas com o mesmo semana_id...")
-        agg_columns = {}
-        for col in climate_features.columns:
-            if col == 'semana_id':
-                continue
-            if pd.api.types.is_numeric_dtype(climate_features[col]):
-                agg_columns[col] = 'mean'
-            else:
-                agg_columns[col] = 'first'
-        climate_features = climate_features.groupby('semana_id', as_index=False).agg(agg_columns)
-        print(f"   Após agregação: {len(climate_features)} linhas")
+        print("   Observado mais de um registro por semana_id em climate_features; mantendo todas as linhas.")
     print(f"   Features climáticas: {len(climate_features.columns)}")
     
     # 2. Selecionar target (y)
@@ -579,10 +569,7 @@ def unify_datasets(
         if 'year' in unified.columns:
             unified = unified.drop(columns=['year'])
     
-    # 5. Remover duplicatas
-    before_dedup = len(unified)
-    unified = unified.drop_duplicates(subset=['semana_id'], keep='first')
-    print(f"   Removidas {before_dedup - len(unified)} linhas duplicadas")
+    # 5. Não remover duplicatas para preservar todas as linhas
     
     # 6. Remover linhas sem target
     before = len(unified)
