@@ -1,0 +1,22 @@
+{
+  "shape": [
+    994,
+    12
+  ],
+  "columns": [
+    "ibge_code",
+    "municipio",
+    "uf",
+    "year",
+    "populacao_total",
+    "domicilios_rurais",
+    "area_km2",
+    "executor_varricao",
+    "extensao_varricao",
+    "varricao_mecanizada",
+    "trabalhadores_temporarios",
+    "qtd_trabalhadores_temporarios"
+  ],
+  "transformation_date": "2026-06-22T20:46:19.710522",
+  "n_features": 12
+}

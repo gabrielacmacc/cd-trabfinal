@@ -1,0 +1,22 @@
+{
+  "shape": [
+    1410,
+    12
+  ],
+  "columns": [
+    "ibge_code",
+    "municipio",
+    "uf",
+    "year",
+    "populacao_total",
+    "populacao_urbana",
+    "coleta_seletiva",
+    "extensao_varricao",
+    "capinacao",
+    "catadores_dispersos",
+    "residuos_coletados",
+    "varredores"
+  ],
+  "transformation_date": "2026-06-22T20:46:19.706691",
+  "n_features": 12
+}
