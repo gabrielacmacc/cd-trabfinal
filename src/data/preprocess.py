@@ -150,24 +150,6 @@ def parse_dates(series: pd.Series, fmt: str | None = None) -> pd.Series:
 
 
 # ---------------------------------------------------------------------------
-# Missing values
-# ---------------------------------------------------------------------------
-
-def handle_missing(df: pd.DataFrame) -> pd.DataFrame:
-    """Handle missing values. Fill in strategy per column as needed."""
-    return df
-
-
-# ---------------------------------------------------------------------------
-# Column dropping
-# ---------------------------------------------------------------------------
-
-def drop_columns(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
-    """Drop columns by name, ignoring any that don't exist in the DataFrame."""
-    return df.drop(columns=[c for c in columns if c in df.columns])
-
-
-# ---------------------------------------------------------------------------
 # Type splitting
 # ---------------------------------------------------------------------------
 
