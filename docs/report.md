@@ -108,7 +108,98 @@ The unified dataset is constructed by merging the climate feature matrix with th
 ---
 
 ## 1.4 Results
+### 1.4.1 Model Performance
+
+The XGBoost model was evaluated on three independent datasets (train, validation, and test) to ensure generalization and avoid overfitting. The table below summarizes the key performance metrics:
+
+| Metric | Train | Validation | Test |
+|--------|-------|------------|------|
+| Accuracy | 0.9180 | 0.9179 | 0.9177 |
+| Precision | 0.5746 | 0.5738 | 0.5714 |
+| Recall | 0.3070 | 0.3062 | 0.3039 |
+| F1-Score | 0.4002 | 0.3993 | 0.3968 |
+| ROC-AUC | 0.8992 | 0.8992 | 0.8973 |
+
+The model achieves **high accuracy (91.8%)** and **strong discriminatory power (ROC-AUC ~0.90)**, indicating excellent ability to distinguish between outbreak and non-outbreak weeks. The consistency of metrics across all three datasets suggests good generalization with no significant overfitting.
+
+However, the **low recall (30.4%)** reveals that the model identifies only about 30% of actual outbreaks, missing many positive events. This limitation stems from the severe **class imbalance** in the dataset — only 5% of records correspond to outbreaks — which naturally biases the model toward predicting the majority class (non-outbreak).
+
+### 1.4.2 Feature Importance Analysis
+
+The analysis of feature importance reveals clear patterns in what drives dengue outbreaks:
+
+| Feature | Importance |
+|---------|------------|
+| Year | 67.1% |
+| Epidemiological Week | 20.5% |
+| Average Maximum Temperature | 3.2% |
+| Average Wind Gust | 1.4% |
+| Minimum Humidity | 1.1% |
+
+**Temporal factors dominate** predictions: year and week together account for nearly 88% of the model's predictive power. This confirms that dengue outbreaks in Rio Grande do Sul follow **well-defined seasonal and interannual cycles**, with epidemic years (such as 2022 and 2024) alternating with low-incidence years.
+
+**Climatic variables have moderate impact**: while temperature (3.2%) and humidity (1.1%) influence vector biology and disease transmission, their combined contribution is significantly smaller than temporal patterns. This suggests that climate conditions help modulate epidemic severity but do not override the broader multi-year dengue cycle.
+
+**Sanitation variables showed negligible importance** in the final model. This may be due to their annual temporal resolution (versus weekly outbreaks), limited variability across municipalities, or the fact that waste collection coverage in RS is already relatively high (>90% in most urban areas).
 
 ---
 
 ## 1.5 Conclusions
+
+### 1.5.1 Key Findings
+
+This project investigated whether weekly dengue outbreaks in Rio Grande do Sul municipalities can be predicted by combining meteorological data and urban sanitation indicators. The main findings are:
+
+1. **Dengue outbreaks are highly predictable** from temporal patterns alone. An XGBoost model achieved strong discriminatory performance (ROC-AUC ~0.90), confirming that seasonal and interannual cycles are the dominant drivers of dengue transmission in the state.
+
+2. **Climate factors play a supporting role** in outbreak prediction. Temperature and humidity contribute to explaining outbreak risk but are secondary to the temporal signal. This aligns with the biological understanding that climate affects *Aedes aegypti* development and viral replication, but population immunity and serotype circulation determine the multi-year epidemic rhythm.
+
+3. **Sanitation data did not improve predictions**. The limited temporal resolution (annual) and small variation in collection coverage across municipalities likely prevented these features from capturing relevant urban vulnerability patterns at the weekly outbreak scale.
+
+4. **Outbreak prediction remains challenging**. The low recall (30%) highlights the inherent difficulty of predicting rare events — even with a strong model, many outbreaks are missed. This is a common limitation in epidemiological forecasting and reflects the complex interplay of factors beyond climate and sanitation.
+
+### 1.5.2 Limitations
+
+The study has several important limitations:
+
+- **Class imbalance** limits the model's ability to detect outbreaks, as only ~5% of weeks are outbreak events.
+- **Strong reliance on temporal features** may reduce the model's utility for predicting outbreaks in atypical years.
+- **Spatial granularity** is limited to weather station coverage, which may not capture local microclimatic variations.
+- **Sanitation data resolution** (annual) is too coarse for weekly outbreak prediction.
+- **Missing epidemiological data** on vector surveillance, population mobility, and serotype circulation could improve predictions if included.
+
+### 1.5.3 Future Work
+
+Based on the limitations identified, several directions for improvement are suggested:
+
+**1. Addressing Class Imbalance**
+- Apply **SMOTE** to generate synthetic outbreak samples.
+- Use **weighted loss functions** to penalize misclassification of outbreaks more heavily.
+- Explore **under-sampling** strategies to balance training data.
+
+**2. Model Enhancement**
+- Test **Random Forest** for better interpretability of feature contributions.
+- Explore **LSTM networks** to capture temporal dependencies in climate and case data.
+- Build **ensemble models** combining multiple classifiers for robustness.
+
+**3. Feature Improvement**
+- Include **lagged case counts** as autoregressive predictors.
+- Create **spatial features** from neighboring municipalities to capture disease spread patterns.
+- Develop **composite risk indices** integrating multiple climate variables.
+
+**4. Data Expansion**
+- Incorporate **entomological surveillance data** (*Aedes aegypti* infestation indices).
+- Include **population mobility data** (e.g., from mobile phone or transportation records).
+- Add **socioeconomic vulnerability indicators** at the municipal level.
+
+**5. Operational Applications**
+- Integrate with **seasonal climate forecasts** to extend prediction horizons.
+- Develop **municipality-specific risk scores** to prioritize surveillance and vector control efforts.
+
+### 1.5.4 Final Remarks
+
+This project demonstrates that machine learning can effectively predict dengue outbreaks in Rio Grande do Sul using temporally resolved climate data, even with limited sanitation information. The strong predictive performance (AUC ~0.90) confirms that dengue follows predictable seasonal patterns, while the low recall highlights the need for improved outbreak detection strategies.
+
+Future efforts could focus on incorporating entomological surveillance and mobility patterns and addressing class imbalance through specialized sampling and modeling techniques. With these enhancements, the model could become a valuable decision-support tool for public health surveillance in Brazil.
+
+The code and datasets used in this project are available in the accompanying repository.
